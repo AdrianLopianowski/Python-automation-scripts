@@ -1,21 +1,22 @@
 import requests
 from bs4 import BeautifulSoup
+import json
 
-# File to store previously seen offers
-seen_offers_file = "seen_offers.txt"
+# File to store all offers in JSON format
+offers_file = "offers.json"
 
-def load_seen_offers():
-    """Load previously seen offers from a file."""
+def load_offers():
+    """Load all previously stored offers from a JSON file."""
     try:
-        with open(seen_offers_file, "r", encoding="utf-8") as file:
-            return set(file.read().splitlines())
+        with open(offers_file, "r", encoding="utf-8") as file:
+            return json.load(file)
     except FileNotFoundError:
-        return set()
+        return []
 
-def save_seen_offers(offers):
-    """Save the current set of offers to a file."""
-    with open(seen_offers_file, "w", encoding="utf-8") as file:
-        file.write("\n".join(offers))
+def save_offers(offers):
+    """Save all offers to a JSON file."""
+    with open(offers_file, "w", encoding="utf-8") as file:
+        json.dump(offers, file, ensure_ascii=False, indent=4)
 
 # URL of the job offers page
 url = "https://students.pl/oferty/staz"
@@ -29,19 +30,28 @@ if response.status_code == 200:
     products = soup.find_all('div', class_='c-ListingCard_headerHeadline')
     print("Job offers:")
     
-    # Load previously seen offers
-    seen_offers = load_seen_offers()
-    current_offers = set()
-    
+    # Load previously stored offers
+    stored_offers = load_offers()
+    stored_offer_names = {offer["name"] for offer in stored_offers}
+    current_offers = []
+
     for product in products:
         name = product.find('h2').text.strip()
-        current_offers.add(name)
+        is_new = name not in stored_offer_names
         
-        # Mark as **new** if not seen before
-        if name not in seen_offers:
+        offer_data = {
+            "name": name,
+            "is_new": is_new
+        }
+        
+        current_offers.append(offer_data)
+        
+        # Print the offer
+        if is_new:
             print(f"**NEW** {name}")
         else:
             print(name)
     
-    # Save the current offers for the next comparison
-    save_seen_offers(current_offers)
+    # Save current offers to the same file
+    save_offers(current_offers)
+    print(f"All offers saved to {offers_file}.")
