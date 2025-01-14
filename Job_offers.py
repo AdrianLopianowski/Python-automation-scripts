@@ -1,11 +1,12 @@
 import requests
 from bs4 import BeautifulSoup
 import json
-import os 
+import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
+from datetime import date
 
 # File to store all offers in JSON format
 offers_file = "offers.json"
@@ -15,43 +16,31 @@ recipient_email = os.getenv("RECIPIENT_EMAIL")
 password = os.getenv("EMAIL_PASSWORD")
 smtp_server = os.getenv("SMTP_SERVER")
 port = int(os.getenv("SMTP_PORT"))
-print("Loaded configuration:")
-print(f"SMTP Server: {smtp_server}")
-print(f"Port: {port}")
-print(f"Sender Email: {sender_email}")
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-# Testowe dane
-subject = "Testowy e-mail"
-body = "Cześć! To jest testowy e-mail wysłany z Pythona."
-
-
-
 
 def send_email(recipient_email, subject, body):
+    """Send an email with the given subject and body."""
     try:
-        # Stwórz wiadomość e-mail
+        # Create the email message
         msg = MIMEMultipart()
         msg['From'] = sender_email
         msg['To'] = recipient_email
         msg['Subject'] = subject
 
-        # Dodaj treść wiadomości
+        # Add message body
         msg.attach(MIMEText(body, 'plain'))
 
-        # Połącz się z serwerem SMTP
+        # Connect to SMTP server and send email
         with smtplib.SMTP(smtp_server, port) as server:
-            server.starttls()  # Szyfruj połączenie
+            server.starttls()
             server.login(sender_email, password)
             server.send_message(msg)
 
-        print("Email wysłany pomyślnie!")
+        print("Email sent successfully!")
     except Exception as e:
-        print(f"Wystąpił błąd podczas wysyłania e-maila: {e}")
+        print(f"Error while sending email: {e}")
 
 def load_offers():
-    """Load all previously stored offers from a JSON file."""
+    """Load previously stored offers from a JSON file."""
     try:
         with open(offers_file, "r", encoding="utf-8") as file:
             return json.load(file)
@@ -72,33 +61,34 @@ if response.status_code == 200:
     soup = BeautifulSoup(response.text, 'html.parser')
     
     # Find all job offers
-    products = soup.find_all('div', class_='c-ListingCard_headerHeadline')
-    print("Job offers:")
+    interns = soup.find_all('div', class_='c-ListingCard_headerHeadline')
     
     # Load previously stored offers
     stored_offers = load_offers()
     stored_offer_names = {offer["name"] for offer in stored_offers}
     current_offers = []
+    new_offers = []
+    today = date.today()
 
-    for product in products:
-        name = product.find('h2').text.strip()
+
+    for intern in interns:
+        name = intern.find('h2').text.strip()
         is_new = name not in stored_offer_names
         
-        offer_data = {
-            "name": name,
-            "is_new": is_new
-        }
-        
+        offer_data = {"name": name}
         current_offers.append(offer_data)
-        
-        # Print the offer
+
+        # If the offer is new, add it to the list of new offers
         if is_new:
-            print(f"**NEW** {name}")
-        else:
-            print(name)
+            new_offers.append(name)
     
-    # Save current offers to the same file
+    # Save the current offers to the file
     save_offers(current_offers)
-    print(f"All offers saved to {offers_file}.")
-    # Wywołaj funkcję
-send_email(recipient_email, subject, body)
+
+    # If there are new offers, send an email
+    if new_offers:
+        subject = f"New job offers available, {today}"
+        body = "The following new job offers have been found:\n\n" + "\n".join(new_offers)
+        send_email(recipient_email, subject, body)
+    else:
+        print("No new job offers found.")
